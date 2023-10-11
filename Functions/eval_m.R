@@ -105,6 +105,7 @@ eval_m <- function(data, #Data in SWD format
  opts <- list(progress = progress)
         else opts <- NULL
       }
+
       results_concave <- foreach::foreach(
         x = 1:n, .options.snow = opts,
         .export = to_export) %dopar% {
