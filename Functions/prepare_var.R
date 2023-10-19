@@ -53,7 +53,7 @@ prepare_var <- function(spat_var,
 
     if(!is.null(exclude_from_PCA)) {
       spat_final <- c(vars_now, spat_var[[exclude_from_PCA]])
-    }
+    } else {spat_final <- vars_now }
 
     #If writeFiles
     if(writeFiles){
@@ -68,7 +68,7 @@ prepare_var <- function(spat_var,
         mutate(Variable = row.names(.), .before = 1)
       write.csv(cof_env, file.path(out_dir, "PCA_results/PCA_rotation.csv"))
       saveRDS(p_env, file.path(out_dir, "PCA_results/PCA_model.RDS"))
-      write.csv(var_exp, file.path(out_dir, "PCA_results/PCA_importance.RDS"))
+      write.csv(var_exp, file.path(out_dir, "PCA_results/PCA_importance.csv"))
 
     }
   } else {
