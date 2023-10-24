@@ -1,9 +1,9 @@
-# ####Import calibration results####
-cr <- read.csv("Models/Piper_fuligineum/calibration_results_v2.csv")
-dir <- "Models/Piper_fuligineum/"
-
-#Test function
-cand_models <- cr
+# # # ####Import calibration results####
+# # cr <- read.csv("Models/Piper_fuligineum/calibration_results_v2.csv")
+# # dir <- "Models/Piper_fuligineum/"
+#
+# #Test function
+# cand_models <- cr
 
 ####Function to select best models####
 sel_best_models <- function(cand_models,
@@ -100,22 +100,22 @@ sel_best_models <- function(cand_models,
   return(cand_final)
   }
 
-# #Test function
-#With minimum omission rate below the selected threshold
-bm <- sel_best_models(cand_models = cr,
-                       test_concave = TRUE,
-                       omrat = 5,
-                       omrat_threshold = 5, #5%
-                       allow_tolerance = T,
-                       tolerance = 0.01,
-                       AIC = "japones",
-                       significance = 0.05,
-                       verbose = TRUE,
-                       save_file = T,
-                       output_dir = dir,
-                       delta_aic = 2)
-#Save best model
-write.csv(bm, "Models/Piper_fuligineum/selected_models.csv", row.names = F)
+# # #Test function
+# #With minimum omission rate below the selected threshold
+# bm <- sel_best_models(cand_models = cr,
+#                        test_concave = TRUE,
+#                        omrat = 5,
+#                        omrat_threshold = 5, #5%
+#                        allow_tolerance = T,
+#                        tolerance = 0.01,
+#                        AIC = "japones",
+#                        significance = 0.05,
+#                        verbose = TRUE,
+#                        save_file = T,
+#                        output_dir = dir,
+#                        delta_aic = 2)
+# #Save best model
+# write.csv(bm, "Models/Piper_fuligineum/selected_models.csv", row.names = F)
 #
 # #With minimum omission rate above the selected threshold, allowing tolerance
 # bm2 <- sel_best_models(cand_models = cr,

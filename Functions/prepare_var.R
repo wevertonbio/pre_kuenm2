@@ -82,7 +82,7 @@ prepare_var <- function(spat_var,
     }
 
     if(write_PCA_files){
-      dir.create(file.path(out_dir, "PCA_results"))
+      dir.create(file.path(out_dir, "PCA_results"), recursive = TRUE)
       #Get coefficients
       cof_env <- p_env$rotation %>% as.data.frame() %>%
         mutate(Variable = row.names(.), .before = 1)
@@ -96,7 +96,7 @@ prepare_var <- function(spat_var,
   #If project_PCA = TRUE...
   if(project_PCA) {
     if(writeFiles)
-      dir.create(file.path(out_dir, "Variable_projections"))
+      dir.create(file.path(out_dir, "Variable_projections"), recursive = TRUE)
     if(verbose & writeFiles)
       message("PCA projections will be saved in: ",
               file.path(out_dir, "Variable_projections"))

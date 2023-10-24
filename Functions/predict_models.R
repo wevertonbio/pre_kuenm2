@@ -1,19 +1,21 @@
 source("Functions/Metrics_Functions.R")
 
-models <- readRDS("Models/Piper_fuligineum/Best_models/Best_models.RDS")
-spat_var <- rast("Models/Piper_fuligineum/PCA_variables.tiff")
+models <- readRDS("Models/Myrcia_hatschbachii/Best_models.RDS")
+spat_var <- rast("Models/Myrcia_hatschbachii/PCA_var.tiff")
 consensus_per_model = TRUE
 consensus_general = TRUE
-consensus = c("median", "range") #mean, weighted mean, variance
+consensus = c("median", "range", "mean", "stdev") #mean, weighted mean, variance
 write_files = TRUE
 write_replicates = FALSE
 type = "cloglog"
-out_dir = "Models/Piper_fuligineum/Predictions"
+out_dir = "Models/Myrcia_hatschbachii/Predictions"
+overwrite = TRUE
 
+#If predict to other scenarios, keep replicates?
 
 predict_models <- function(models,
                            spat_var,
-                           write_files = TRUE,
+                           write_files = FALSE,
                            write_replicates = FALSE,
                            out_dir = NULL,
                            consensus_per_model = TRUE,
@@ -56,22 +58,74 @@ predict_models <- function(models,
       }
 
   #Get general consensus
-  if(consensus_general){
-    all_rep <- rast(p_models)
+  if(consensus_general & length(p_models) == 1 & consensus_per_model){
 
     if("median" %in% consensus) {
-      res$Consensus_general$median <- median(all_rep)
+      res$Consensus_general$median <- res$Consensus_per_model$median
     }
     if("mean" %in% consensus) {
-      res$Consensus_general$mean <- mean(all_rep)
+      res$Consensus_general$mean <- res$Consensus_per_model$mean
     }
     if("stdev" %in% consensus) {
-      res$Consensus_general$stdev <- stdev(all_rep)
+      res$Consensus_general$stdev <- res$Consensus_per_model$stdev
     }
     if("range" %in% consensus) {
-      res$Consensus_general$range <- diff(range(all_rep))
+      res$Consensus_general$range <- res$Consensus_per_model$range
+    }
+  } else {
+    if(consensus_general & length(p_models) == 1 & !consensus_per_model) {
+      all_rep <- rast(p_models)
+
+      if("median" %in% consensus) {
+        res$Consensus_general$median <- median(all_rep)
+      }
+      if("mean" %in% consensus) {
+        res$Consensus_general$mean <- mean(all_rep)
+      }
+      if("stdev" %in% consensus) {
+        res$Consensus_general$stdev <- stdev(all_rep)
+      }
+      if("range" %in% consensus) {
+        res$Consensus_general$range <- diff(range(all_rep))
       }
     }
+
+    if(consensus_general  & length(p_models) > 1){
+      all_rep <- rast(p_models)
+
+      if("median" %in% consensus) {
+        res$Consensus_general$median <- median(all_rep)
+      }
+      if("mean" %in% consensus) {
+        res$Consensus_general$mean <- mean(all_rep)
+      }
+      if("stdev" %in% consensus) {
+        res$Consensus_general$stdev <- stdev(all_rep)
+      }
+      if("range" %in% consensus) {
+        res$Consensus_general$range <- diff(range(all_rep))
+      }
+    }
+  }
+
+
+  # #Get general consensus
+  # if(consensus_general){
+  #   all_rep <- rast(p_models)
+  #
+  #   if("median" %in% consensus) {
+  #     res$Consensus_general$median <- median(all_rep)
+  #   }
+  #   if("mean" %in% consensus) {
+  #     res$Consensus_general$mean <- mean(all_rep)
+  #   }
+  #   if("stdev" %in% consensus) {
+  #     res$Consensus_general$stdev <- stdev(all_rep)
+  #   }
+  #   if("range" %in% consensus) {
+  #     res$Consensus_general$range <- diff(range(all_rep))
+  #     }
+  #   }
 
 
   #Write files?
