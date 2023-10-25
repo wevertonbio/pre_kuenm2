@@ -7,24 +7,21 @@
 
 ####Function to select best models####
 sel_best_models <- function(cand_models,
-                     test_convex = TRUE,
+                     test_concave = TRUE,
                      omrat = 5,
                      omrat_threshold = 5,
                      allow_tolerance = T,
                      tolerance = 0.01,
-                     AIC = "nk",
+                     AIC = "japones",
                      significance = 0.05,
                      verbose = TRUE,
                      delta_aic = 2,
                      save_file = T,
-                     file_name = NULL){
+                     output_dir = NULL){
 
-  if(AIC == "nk") {
-    AIC <- "AIC_nk"}
-
-  if(AIC == "ws") {
-    AIC <- "AIC_ws"}
-
+  if(AIC == "japones") {
+    AIC <-   "AIC"} else {
+      AIC <-  "AIC_Warren"}
 
   #Which omission rate?
   om_thr <- paste0("Omission_rate_at_", omrat, ".mean")
@@ -34,13 +31,13 @@ sel_best_models <- function(cand_models,
     message("Filtering ", nrow(cand_models), " models")
   }
 
-  #If test convex = TRUE, remove convex curves
-  if(test_convex) {
+  #If test concave = TRUE, remove concave curves
+  if(test_concave) {
     if(verbose){
-      message("Removing ", nrow(subset(cand_models, is_convex == TRUE)),
-              " models with convex curves")
+      message("Removing ", nrow(subset(cand_models, is_concave == TRUE)),
+              " models with concave curves")
     }
-    cand_models <- subset(cand_models, is_convex == FALSE)
+    cand_models <- subset(cand_models, is_concave == FALSE)
   }
 
   #Remove NAs from results
@@ -90,12 +87,15 @@ sel_best_models <- function(cand_models,
   }
 
   if(save_file == T){
-    if(is.null(file_name)){
-      stop("file name need to be defined")
+    if(is.null(output_dir)){
+      stop("outpur_dir need to be defined")
       }
-  write.csv(cand_final, paste0(file_name, ".csv"),
+  write.csv(cand_final, file.path(output_dir, "selected_models.csv"),
               row.names = F)
+  if(verbose){
+    message("selected_models.csv written in ", output_dir)
   }
+    }
 
   return(cand_final)
   }
@@ -103,12 +103,12 @@ sel_best_models <- function(cand_models,
 # # #Test function
 # #With minimum omission rate below the selected threshold
 # bm <- sel_best_models(cand_models = cr,
-#                        test_convex = TRUE,
+#                        test_concave = TRUE,
 #                        omrat = 5,
 #                        omrat_threshold = 5, #5%
 #                        allow_tolerance = T,
 #                        tolerance = 0.01,
-#                        AIC = "nk",
+#                        AIC = "japones",
 #                        significance = 0.05,
 #                        verbose = TRUE,
 #                        save_file = T,
@@ -119,12 +119,12 @@ sel_best_models <- function(cand_models,
 #
 # #With minimum omission rate above the selected threshold, allowing tolerance
 # bm2 <- sel_best_models(cand_models = cr,
-#                       test_convex = TRUE,
+#                       test_concave = TRUE,
 #                       omrat = 5,
 #                       omrat_threshold = 1, #1%
 #                       allow_tolerance = T,
 #                       tolerance = 0.01,
-#                       AIC = "nk",
+#                       AIC = "japones",
 #                       significance = 0.05,
 #                       verbose = TRUE,
 #                       delta_aic = 2,
@@ -133,12 +133,12 @@ sel_best_models <- function(cand_models,
 #
 # #With minimum omission rate above the selected threshold, allowing tolerance
 # bm3 <- sel_best_models(cand_models = cr,
-#                       test_convex = TRUE,
+#                       test_concave = TRUE,
 #                       omrat = 5,
 #                       omrat_threshold = 1, #1%
 #                       allow_tolerance = F,
 #                       tolerance = 0.01,
-#                       AIC = "nk",
+#                       AIC = "japones",
 #                       significance = 0.05,
 #                       verbose = TRUE,
 #                       delta_aic = 2,

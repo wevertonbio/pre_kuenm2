@@ -55,8 +55,7 @@ rm(list = ls())
 
 
 ####Prepare swd####
-source("Functions/prepare_swd.R") #FUnction to prepare swd
-source("Functions/Metrics_Functions.R") #Helper functions
+source("Functions/prepare_data.R") #FUnction to prepare swd
 
 #Now, let's prepare the swd file, which is a file with the values of the variables extracted to each occurrence record of the species, and to n (10.000) background points
 #Now, we need the occurrences of the species
@@ -70,36 +69,42 @@ pca_var <- rast("Models/Myrcia_hatschbachii/PCA_var.tiff")
 plot(pca_var) #Check plot
 
 #Prepare SWD
-prepare_swd(occ = occ, #Dataframe with the occurrences
-            x = "x", y = "y", #Column names with longitude (x) and latitude (y)
-            species = "Myrcia_hatschbachii", #Name of the specie (optional)
-            spat_var = pca_var, #Variables to fit the model (here, PCA variable)
-            nbg = 10000, #Number of background points
-            kfolds = 4, #Number of k-folds to validate the candidate models
-            include_xy = TRUE, #Include coordinates in the swd file?
-            writeFiles = TRUE, #Write swd file?
-            out_dir = "Models/Myrcia_hatschbachii") #Outuput directory
+prepare_data(occ = occ,
+             species = "species",
+             x = "x",
+             y = "y",
+             spat_variables = pca_var,
+             categorical_variables = "SoilType",
+             nbg = 10000,
+             kfolds = 4,
+             include_xy = TRUE,
+             write_files = T,
+             file_name = "Models/Myrcia_hatschbachii/Data_to_calib",
+             seed = 42,
+             verbose = TRUE) #Outuput directory
 #Check the file occ_bg in the out_dir :)
 #Clean the environment
 rm(list = ls())
 
 ####Fit candidate models####
-library(kuenm)
 library(foreach)
-source("Functions/eval_m.R") #FUnction to fit candidate models
-source("Functions/Metrics_Functions.R") #Helper functions
+source("Functions/calibration_glmnetmx.R") #FUnction to fit candidate models
+source("Functions/helpers_calibration_glmnetmx.R") #
+source("Functions/calibration_grid_glmnetmx.R") #
+source("Functions/glmnet_mx.R")
+source("Functions/helpers_glmnetmx.R")
+source("Functions/omrat_glmnetmx.R")
 
 #Get swd file
-occ_bg <- read.csv("Models/Myrcia_hatschbachii/occ_bg.csv")
-#Check column names
-colnames(occ_bg)
+data <- readRDS("Models/Myrcia_hatschbachii/Data.RDS")
+
 #Let's create a grid of formulas, combining differents sets of variables, features and regularization multipliers
-f_grid <- create_grid(swd = occ_bg, #Swd dataframe
+f_grid <- calibration_grid_glmnetmx(swd = data$calibration_data, #Swd dataframe
                       x = "x", y = "y", #If swd dataframe cointains x and y, set here; if not, use NULL
                       min.number = 2, #Minimum number of variables in each set of variavles
                       categorical_var = "SoilType", #Identify categorical variables, if exists
                       features = c("l", "lq", "lqp"), #Features
-                      regm = c(0.1, 1, 3, 5)) #Regularization multipliers
+                      regm = c(0.1, 1, 5)) #Regularization multipliers
 #See how many candidate models will be testes
 nrow(f_grid)
 
@@ -107,21 +112,28 @@ nrow(f_grid)
 #USe 70% of the available cores
 ncores <- round(parallel::detectCores()* 0.7, 0)
 
-m <- eval_m(data = occ_bg, #SWD dataframe
-            pr_bg = "pr_bg", #Column name in data indicating presence/background
-            formula_grid = f_grid, #Formula grid
-            var_categorical = "SoilType", #Identify categorical variables, if exists
-            test_concave = T, #Test concave curves?
-            folds = "folds", #Column name in data indicating folds to evaluate the model
-            parallel = T, #Run in parallel?
-            ncores = ncores, #Number of cores
-            progress_bar = T, #Show progress bar?
-            writeFiles = F, #Write files?
-            only_summary = T, #Return results for all folds or only summary?
-            omrat_thr = c(5, 10)) #Omission rate to evaluate the models
+m <- calibration_glmnetmx(data = data, #Data in **CLASS??** format
+          formula_grid = f_grid, #Grid with formulas
+          test_convex = TRUE, #Test concave curves in quadratic models?
+          parallel = TRUE,
+          ncores = 7,
+          progress_bar = TRUE, #Show progress bar? Only works if parallelType = "doSNOW"
+          write_summary = FALSE, #Write candidate evaluations?
+          out_dir = NULL, #Name of the folder to write candidate evaluations
+          parallel_type = "doSNOW",
+          return_replicate = TRUE,
+          omrat_thr = c(5, 10),
+          skip_existing_models = FALSE, #Only works if writeFiles = TRUE
+          verbose = TRUE,
+          #Check if it's necessary to export in the package
+          to_export = c("aic_nk", "aic_ws", "eval_stats","glmnet_mx",
+                        "maxnet.default.regularization", "omrat",
+                        "predict.glmnet_mx", "empty_replicates",
+                        "empty_summary", "hinge", "hingeval", "thresholds",
+                        "thresholdval", "categorical", "categoricalval"))
 
 #Save candidate models
-write.csv(m, "Models/Myrcia_hatschbachii/candidate_results.csv", row.names = F)
+saveRDS(m, "Models/Myrcia_hatschbachii/candidate_results.RDS")
 #Clean the environment
 rm(list = ls())
 
@@ -131,19 +143,19 @@ rm(list = ls())
 source("Functions/select_best_models.R")
 
 #Import results from candidate models
-m <- read.csv("Models/Myrcia_hatschbachii/candidate_results.csv")
-bm <- sel_best_models(cand_models = m, #dataframe with Candidate results
-                      test_concave = T, #Remove models with concave curves?
+m <- readRDS("Models/Myrcia_hatschbachii/candidate_results.RDS")
+bm <- sel_best_models(cand_models = m$Summary, #dataframe with Candidate results
+                      test_convex = T, #Remove models with concave curves?
                       omrat = 10, #Omission rate (train points) used to select the best models
                       omrat_threshold = 10, #Omission rate (test points) used to select the best models
                       allow_tolerance = T, #If omission rate is higher than set, select the model with minimum omission rate
                       tolerance = 0.01, #If allow tollerance, select the model with minimum omission rate + tolerance
-                      AIC = "japones", #Which AIC? japones or Warrien?
+                      AIC = "nk", #Which AIC? japones (nk) or Warrien (ws?
                       significance = 0.05, #Significante to select models based on pROC
                       verbose = TRUE, #Show messages?
                       delta_aic = 2, #Delta AIC to select best models
                       save_file = T, #Save file with best models?
-                      output_dir = "Models/Myrcia_hatschbachii") #Outuput directory to save file
+                      file_name = "Models/Myrcia_hatschbachii/best_model") #Outuput directory to save file
 #The result will be a subset of the candidate models with the best models
 #Clean the environment
 rm(list = ls())
@@ -151,45 +163,62 @@ rm(list = ls())
 #### Fit best models ####
 library(terra)
 library(foreach)
-source("Functions/fit_best.R")
-source("Functions/Metrics_Functions.R")
+source("Functions/calibration_glmnetmx.R") #FUnction to fit candidate models
+source("Functions/helpers_calibration_glmnetmx.R") #
+source("Functions/calibration_grid_glmnetmx.R") #
+source("Functions/glmnet_mx.R")
+source("Functions/helpers_glmnetmx.R")
+source("Functions/omrat_glmnetmx.R")
+source("Functions/fit_selected_glmnetmx.R")
 source("Functions/part_data.R")
 
 #Import data to fit best model
-occ_bg <- read.csv("Models/Myrcia_hatschbachii/occ_bg.csv") #SWD file
-bm <- read.csv("Models/Myrcia_hatschbachii/selected_models.csv") #Best models
+data <- readRDS("Models/Myrcia_hatschbachii/Data.RDS")
+bm <- read.csv("Models/Myrcia_hatschbachii/best_model.csv") #Best models
 #Fit best models: the result will be a RDS file with the replicates of the model
-res <- fit_best(data = occ_bg, #SWD dataframe
-                       pr_bg = "pr_bg", #Column name in data indicating presence/background
-                       selected_models = bm, #Best models (output of sel_best_models)
-                       var_categorical = "SoilType", #Identify categorical variables, if exists
-                       replicates = TRUE, #Run replicates?
-                       n_replicates = 10, #Number of replicates
-                       rep_type = "subsample", #Type of partition: subsample, bootstrap or kfold
-                       train_portion = 0.7, #If subsample or bootstrap, portion of train points
-                       parallel = TRUE, #Run in parallel?
-                       ncores = 8, #Number of cores
-                       progress_bar = TRUE, #Show progress bar?
-                       write_models = TRUE, #Write files?
-                       out_dir = "Models/Myrcia_hatschbachii", #Name of the folder to write final models
-                       parallelType = "doSNOW", #Paralell type (doSnow or doParallel)
-                       verbose = TRUE) #Show messages?
+res <- fit_selected_glmnetmx(data = data,
+                             selected_models = bm,
+                             replicates = TRUE,
+                             n_replicates = 10,
+                             rep_type = "kfold",
+                             train_portion = 0.7,
+                             write_models = TRUE, #Write files?
+                             file_name = "Models/Myrcia_hatschbachii/best_models", #Name of the folder to write final models
+                             parallel = TRUE,
+                             ncores = 1,
+                             parallelType = "doSNOW",
+                             progress_bar = TRUE,
+                             verbose = TRUE,
+                             to_export = c("aic_nk", "aic_ws",
+                                           "eval_stats","glmnet_mx",
+                                           "maxnet.default.regularization",
+                                           "omrat","predict.glmnet_mx",
+                                           "empty_replicates",
+                                           "empty_summary", "hinge",
+                                           "hingeval",
+                                           "thresholds", "thresholdval",
+                                           "categorical",
+                                           "categoricalval")) #Show messages?
 #Clean the environment
 rm(list = ls())
 
 ####Predict####
+library(terra)
+source("Functions/predict_selected_glmnetmx.R")
+source("Functions/helpers_glmnetmx.R")
 
+res <- readRDS("Models/Myrcia_hatschbachii/Best_models.RDS")
 var <- rast("Models/Myrcia_hatschbachii/PCA_var.tiff")
-p <- predict_models(models = res, spat_var = var,
+p <- predict_selected_glmnetmx(models = res, spat_var = var,
                     write_files = FALSE,
                     write_replicates = FALSE,
                     out_dir = NULL,
-                    consensus_per_model = FALSE,
+                    consensus_per_model = TRUE,
                     consensus_general = TRUE,
                     consensus = c("median", "range", "mean", "stdev"), #weighted mean
                     type = "cloglog",
                     overwrite = TRUE)
 p
-plot(p$Replicates$Model_771)
+plot(p$Replicates[[1]])
 plot(p$Consensus_per_model$median)
 plot(p$Consensus_general$median)

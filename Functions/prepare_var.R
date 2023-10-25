@@ -1,41 +1,29 @@
-# #Load packages
-# library(terra)
-# library(dplyr)
-#
-# #Example data
-# var <- list.files("C:/Users/wever/Desktop/KU_Models/Current_Neotropic/",
-#                   full.names = T) %>% rast()
-# names(var)
-# var <- var[[setdiff(names(var), c("Altitude", "Nitrogen",
-#                                   "OrganicCArbon", "ph", "Ruggedness",
-#                                   "TopoIndex"))]]
-# m <- vect("C:/Users/wever/Desktop/KU_Models/M_simulations/New_M/Araucaria_angustifolia.gpkg")
-#
-# #Future layers
-# fvar <- list(rast("C:/Users/wever/Desktop/KU_Models/Future_AF/SSP245_2041-2060_ACCESS-CM2.tiff"),
-#              rast("C:/Users/wever/Desktop/KU_Models/Future_AF/SSP245_2041-2060_IPSL-CM6A-LR.tiff"))
-# #Rename
-# sources_fvar <- sapply(fvar, terra::sources)
-# names(fvar) <- sub(".*/(.*?)\\.tif*", "\\1", sources_fvar)
-#
-#
-#
-# spat_var = var
-# mask = m
-# do_PCA = TRUE
-# exclude_from_PCA = names(var)[!grepl("Bio", names(var))]
-# writeFiles = TRUE
-# out_dir = "Models/Araucaria_angustifolia/"
-# var_portion = 95
-# write_PCA_files = T
-# overwrite = T
-# project_PCA = TRUE
-# proj_spat = fvar
-# proj_folder = "C:/Users/wever/Desktop/KU_Models/Future_AF/"
-# verbose = TRUE
-
-prepare_var <- function(spat_var,
-                        mask = NULL,
+#' Prepare environmental variables
+#'
+#' @description
+#' Prepare variables to run models, masking and/or generating PCA variables
+#'
+#' @param variables
+#' @param mask
+#' @param do_PCA
+#' @param exclude_from_PCA
+#' @param var_portion
+#' @param writeFiles
+#' @param write_PCA_files
+#' @param out_dir
+#' @param overwrite
+#' @param project_PCA
+#' @param proj_spat
+#' @param proj_folder
+#' @param return_proj
+#' @param verbose
+#'
+#' @return
+#' @export
+#'
+#' @examples
+prepare_var <- function(variables,
+                        calib_area = NULL,
                         do_PCA = F,
                         exclude_from_PCA = NULL,
                         var_portion = 95,
@@ -48,31 +36,31 @@ prepare_var <- function(spat_var,
                         proj_folder = NULL, #Variables need to be stacked in a single tiff file by scenario, and file need to be the name of the scenario. If there are variables to exclude from PCA (for example, soil type), this variable must be included in the tiff file
                         return_proj = TRUE,
                         verbose = TRUE) {
-  if(!is.null(mask)){
-    spat_var <- terra::crop(spat_var, mask, mask = TRUE)
+  if(!is.null(calib_area)){
+    variables <- terra::crop(variables, calib_area, mask = TRUE)
   }
 
   if(do_PCA){
     if(!is.null(exclude_from_PCA)) {
-      spat_var_pca <- spat_var[[setdiff(names(spat_var),exclude_from_PCA)]]
+      variables_pca <- variables[[setdiff(names(variables),exclude_from_PCA)]]
     } else {
-      spat_var_pca <- spat_var}
+      variables_pca <- variables}
     #Do PCA
     #PCA
-    p_env <- stats::prcomp(as.data.frame(spat_var_pca),
+    p_env <- stats::prcomp(as.data.frame(variables_pca),
                            retx = TRUE,
                            scale. = TRUE,
                            center = TRUE)
 
     #Predict to current
-    vars_now <- terra::predict(spat_var_pca, p_env)
+    vars_now <- terra::predict(variables_pca, p_env)
     #Select n-variables based on portion of explained variance
     var_exp <- t(summary(p_env)$importance)
     var_sel <- which(var_exp[,3] > var_portion/100)[1]
     vars_now <- vars_now[[1:var_sel]]
 
     if(!is.null(exclude_from_PCA)) {
-      spat_final <- c(vars_now, spat_var[[exclude_from_PCA]])
+      spat_final <- c(vars_now, variables[[exclude_from_PCA]])
     } else {spat_final <- vars_now }
 
     #If writeFiles
@@ -90,7 +78,7 @@ prepare_var <- function(spat_var,
       saveRDS(p_env, file.path(out_dir, "PCA_results/PCA_model.RDS"))
       write.csv(var_exp, file.path(out_dir, "PCA_results/PCA_importance.csv"))}
   } else {
-    spat_final <- spat_var
+    spat_final <- variables
   }
 
   #If project_PCA = TRUE...
@@ -118,7 +106,7 @@ prepare_var <- function(spat_var,
       r_proj <- lapply(names(proj_spat), function(x){
         #Subset variables
         name_x <- x
-        psx <- proj_spat[[name_x]][[names(spat_var_pca)]]
+        psx <- proj_spat[[name_x]][[names(variables_pca)]]
         #Project PCA
         psr <- terra::predict(psx, p_env, na.rm = TRUE)
         #Select axix
@@ -151,92 +139,3 @@ prepare_var <- function(spat_var,
                    Projections = r_proj)
   } else {return(spat_final)}
 } #End of function
-
-# #Test function
-# #Example data
-# var <- list.files("C:/Users/wever/Desktop/KU_Models/Current_Neotropic/",
-#                   full.names = T) %>% rast()
-# names(var)
-# var <- var[[setdiff(names(var), c("Altitude", "Nitrogen",
-#                                   "OrganicCArbon", "ph", "Ruggedness",
-#                                   "TopoIndex"))]]
-# m <- vect("C:/Users/wever/Desktop/KU_Models/M_simulations/New_M/Araucaria_angustifolia.gpkg")
-# exclude_from_PCA = names(var)[!grepl("Bio", names(var))]
-#
-#
-# ####Test without prediction and not write
-# pca_var <- prepare_var(spat_var = var,
-#                        mask = m,
-#                        do_PCA = TRUE,
-#                        exclude_from_PCA = exclude_from_PCA,
-#                        var_portion = 95,
-#                        writeFiles = FALSE,
-#                        write_PCA_files = T,
-#                        out_dir = "Models/Araucaria_angustifolia/",
-#                        overwrite = TRUE,
-#                        project_PCA = FALSE,
-#                        proj_spat = NULL, #Need to be a list with SpatRast. If there are variables to exclude from PCA (for example, soil type), this variable must be included in the tiff file
-#                        proj_folder = NULL, #Variables need to be stacked in a single tiff file by scenario, and file need to be the name of the scenario. If there are variables to exclude from PCA (for example, soil type), this variable must be included in the tiff file
-#                        return_proj = TRUE,
-#                        verbose = TRUE) #Overwrite files
-#
-# ####Test with predictions on list, but not write data
-# #Future layers
-# fvar <- list(rast("C:/Users/wever/Desktop/KU_Models/Future_AF/SSP245_2041-2060_ACCESS-CM2.tiff"),
-#              rast("C:/Users/wever/Desktop/KU_Models/Future_AF/SSP245_2041-2060_IPSL-CM6A-LR.tiff"))
-# #Rename
-# sources_fvar <- sapply(fvar, terra::sources)
-# names(fvar) <- sub(".*/(.*?)\\.tif*", "\\1", sources_fvar)
-#
-# pca_var2 <- prepare_var(spat_var = var,
-#                         mask = m,
-#                         do_PCA = TRUE,
-#                         exclude_from_PCA = exclude_from_PCA,
-#                         var_portion = 95,
-#                         writeFiles = FALSE,
-#                         write_PCA_files = T,
-#                         out_dir = "Models/Araucaria_angustifolia/",
-#                         overwrite = TRUE,
-#                         project_PCA = TRUE, #If project_PCA is TRUE, need to define out_dir
-#                         proj_spat = fvar, #Need to be a list with SpatRast. If there are variables to exclude from PCA (for example, soil type), this variable must be included in the tiff file
-#                         proj_folder = NULL, #Variables need to be stacked in a single tiff file by scenario, and file need to be the name of the scenario. If there are variables to exclude from PCA (for example, soil type), this variable must be included in the tiff file
-#                         return_proj = TRUE,
-#                         verbose = TRUE) #Overwrite files
-#
-# ####Test with predictions on folders, and write data
-# #Future layers
-# fvar <- "C:/Users/wever/Desktop/KU_Models/Future_AF/"
-#
-# pca_var3 <- prepare_var(spat_var = var,
-#                         mask = m,
-#                         do_PCA = TRUE,
-#                         exclude_from_PCA = exclude_from_PCA,
-#                         var_portion = 95,
-#                         writeFiles = TRUE,
-#                         write_PCA_files = T,
-#                         out_dir = "Models/Araucaria_angustifolia/",
-#                         overwrite = TRUE,
-#                         project_PCA = TRUE, #If project_PCA is TRUE, need to define out_dir
-#                         proj_spat = NULL, #Need to be a list with SpatRast. If there are variables to exclude from PCA (for example, soil type), this variable must be included in the tiff file
-#                         proj_folder = fvar, #Variables need to be stacked in a single tiff file by scenario, and file need to be the name of the scenario. If there are variables to exclude from PCA (for example, soil type), this variable must be included in the tiff file
-#                         return_proj = TRUE,
-#                         verbose = TRUE) #Overwrite files
-#
-# ####Test with predictions on folders, write data and do not return projections
-# #Future layers
-# fvar <- "C:/Users/wever/Desktop/KU_Models/Future_AF/"
-#
-# pca_var4 <- prepare_var(spat_var = var,
-#                         mask = m,
-#                         do_PCA = TRUE,
-#                         exclude_from_PCA = exclude_from_PCA,
-#                         var_portion = 95,
-#                         writeFiles = TRUE,
-#                         write_PCA_files = T,
-#                         out_dir = "Models/Araucaria_angustifolia/",
-#                         overwrite = TRUE,
-#                         project_PCA = TRUE, #If project_PCA is TRUE, need to define out_dir
-#                         proj_spat = NULL, #Need to be a list with SpatRast. If there are variables to exclude from PCA (for example, soil type), this variable must be included in the tiff file
-#                         proj_folder = fvar, #Variables need to be stacked in a single tiff file by scenario, and file need to be the name of the scenario. If there are variables to exclude from PCA (for example, soil type), this variable must be included in the tiff file
-#                         return_proj = FALSE,
-#                         verbose = TRUE) #Overwrite files
