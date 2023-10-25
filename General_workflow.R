@@ -94,6 +94,7 @@ source("Functions/calibration_grid_glmnetmx.R") #
 source("Functions/glmnet_mx.R")
 source("Functions/helpers_glmnetmx.R")
 source("Functions/omrat_glmnetmx.R")
+source("Functions/select_best_models.R")
 
 #Get swd file
 data <- readRDS("Models/Myrcia_hatschbachii/Data.RDS")
@@ -113,7 +114,7 @@ nrow(f_grid)
 ncores <- round(parallel::detectCores()* 0.7, 0)
 
 m <- calibration_glmnetmx(data = data, #Data in **CLASS??** format
-          formula_grid = f_grid, #Grid with formulas
+          formula_grid = f_grid[1:50,], #Grid with formulas
           test_convex = TRUE, #Test concave curves in quadratic models?
           parallel = TRUE,
           ncores = 7,
@@ -123,14 +124,9 @@ m <- calibration_glmnetmx(data = data, #Data in **CLASS??** format
           parallel_type = "doSNOW",
           return_replicate = TRUE,
           omrat_thr = c(5, 10),
+          omrat_threshold = 10,
           skip_existing_models = FALSE, #Only works if writeFiles = TRUE
-          verbose = TRUE,
-          #Check if it's necessary to export in the package
-          to_export = c("aic_nk", "aic_ws", "eval_stats","glmnet_mx",
-                        "maxnet.default.regularization", "omrat",
-                        "predict.glmnet_mx", "empty_replicates",
-                        "empty_summary", "hinge", "hingeval", "thresholds",
-                        "thresholdval", "categorical", "categoricalval"))
+          verbose = TRUE)
 
 #Save candidate models
 saveRDS(m, "Models/Myrcia_hatschbachii/candidate_results.RDS")
@@ -138,27 +134,26 @@ saveRDS(m, "Models/Myrcia_hatschbachii/candidate_results.RDS")
 rm(list = ls())
 
 
-####Select the best models####
-#Now, let's select the best models:
-source("Functions/select_best_models.R")
-
-#Import results from candidate models
-m <- readRDS("Models/Myrcia_hatschbachii/candidate_results.RDS")
-bm <- sel_best_models(cand_models = m$Summary, #dataframe with Candidate results
-                      test_convex = T, #Remove models with concave curves?
-                      omrat = 10, #Omission rate (train points) used to select the best models
-                      omrat_threshold = 10, #Omission rate (test points) used to select the best models
-                      allow_tolerance = T, #If omission rate is higher than set, select the model with minimum omission rate
-                      tolerance = 0.01, #If allow tollerance, select the model with minimum omission rate + tolerance
-                      AIC = "nk", #Which AIC? japones (nk) or Warrien (ws?
-                      significance = 0.05, #Significante to select models based on pROC
-                      verbose = TRUE, #Show messages?
-                      delta_aic = 2, #Delta AIC to select best models
-                      save_file = T, #Save file with best models?
-                      file_name = "Models/Myrcia_hatschbachii/best_model") #Outuput directory to save file
-#The result will be a subset of the candidate models with the best models
-#Clean the environment
-rm(list = ls())
+# ####Select the best models#### - Inside Fit candidate models
+# #Now, let's select the best models:
+# source("Functions/select_best_models.R")
+#
+# #Import results from candidate models
+# m <- readRDS("Models/Myrcia_hatschbachii/candidate_results.RDS")
+# bm <- sel_best_models(cand_models = m$Summary, #dataframe with Candidate results
+#                       test_convex = T, #Remove models with concave curves?
+#                       omrat_threshold = 10, #Omission rate (test points) used to select the best models
+#                       allow_tolerance = T, #If omission rate is higher than set, select the model with minimum omission rate
+#                       tolerance = 0.01, #If allow tollerance, select the model with minimum omission rate + tolerance
+#                       AIC = "nk", #Which AIC? japones (nk) or Warrien (ws?
+#                       significance = 0.05, #Significante to select models based on pROC
+#                       verbose = TRUE, #Show messages?
+#                       delta_aic = 2, #Delta AIC to select best models
+#                       save_file = T, #Save file with best models?
+#                       file_name = "Models/Myrcia_hatschbachii/best_model") #Outuput directory to save file
+# #The result will be a subset of the candidate models with the best models
+# #Clean the environment
+# rm(list = ls())
 
 #### Fit best models ####
 library(terra)
@@ -173,32 +168,34 @@ source("Functions/fit_selected_glmnetmx.R")
 source("Functions/part_data.R")
 
 #Import data to fit best model
-data <- readRDS("Models/Myrcia_hatschbachii/Data.RDS")
-bm <- read.csv("Models/Myrcia_hatschbachii/best_model.csv") #Best models
+bm <- readRDS("Models/Myrcia_hatschbachii/candidate_results.RDS") #Best models
 #Fit best models: the result will be a RDS file with the replicates of the model
-res <- fit_selected_glmnetmx(data = data,
-                             selected_models = bm,
-                             replicates = TRUE,
+res_kfold <- fit_selected_glmnetmx(calibration_results = bm,
+                             #selected_models = bm,
+                             # replicates = TRUE,
                              n_replicates = 10,
                              rep_type = "kfold",
                              train_portion = 0.7,
                              write_models = TRUE, #Write files?
-                             file_name = "Models/Myrcia_hatschbachii/best_models", #Name of the folder to write final models
+                             file_name = "Models/Myrcia_hatschbachii/best_models_kfold", #Name of the folder to write final models
                              parallel = TRUE,
-                             ncores = 1,
+                             ncores = 8,
                              parallelType = "doSNOW",
                              progress_bar = TRUE,
-                             verbose = TRUE,
-                             to_export = c("aic_nk", "aic_ws",
-                                           "eval_stats","glmnet_mx",
-                                           "maxnet.default.regularization",
-                                           "omrat","predict.glmnet_mx",
-                                           "empty_replicates",
-                                           "empty_summary", "hinge",
-                                           "hingeval",
-                                           "thresholds", "thresholdval",
-                                           "categorical",
-                                           "categoricalval")) #Show messages?
+                             verbose = TRUE) #Show messages?
+res_subsample <- fit_selected_glmnetmx(calibration_results = bm,
+                                   #selected_models = bm,
+                                   # replicates = TRUE,
+                                   n_replicates = 10,
+                                   rep_type = "subsample",
+                                   train_portion = 0.7,
+                                   write_models = TRUE, #Write files?
+                                   file_name = "Models/Myrcia_hatschbachii/best_models_kfold", #Name of the folder to write final models
+                                   parallel = TRUE,
+                                   ncores = 8,
+                                   parallelType = "doSNOW",
+                                   progress_bar = TRUE,
+                                   verbose = TRUE) #Show messages?
 #Clean the environment
 rm(list = ls())
 
@@ -207,12 +204,18 @@ library(terra)
 source("Functions/predict_selected_glmnetmx.R")
 source("Functions/helpers_glmnetmx.R")
 
-res <- readRDS("Models/Myrcia_hatschbachii/Best_models.RDS")
+res <- readRDS("Models/Myrcia_hatschbachii/best_models_kfold.RDS")
+#Test with 2 models
+res2 <- c(res, res)
+names(res2) <- c("Model_21", "Model_42")
+
 var <- rast("Models/Myrcia_hatschbachii/PCA_var.tiff")
-p <- predict_selected_glmnetmx(models = res, spat_var = var,
-                    write_files = FALSE,
+
+p <- predict_selected_glmnetmx(models = res2,
+                               spat_var = var,
+                    write_files = TRUE,
                     write_replicates = FALSE,
-                    out_dir = NULL,
+                    out_dir = "Models/Myrcia_hatschbachii/Predictions/",
                     consensus_per_model = TRUE,
                     consensus_general = TRUE,
                     consensus = c("median", "range", "mean", "stdev"), #weighted mean

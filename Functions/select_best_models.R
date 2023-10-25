@@ -8,7 +8,7 @@
 ####Function to select best models####
 sel_best_models <- function(cand_models,
                      test_convex = TRUE,
-                     omrat = 5,
+                     # omrat = 5,
                      omrat_threshold = 5,
                      allow_tolerance = T,
                      tolerance = 0.01,
@@ -27,11 +27,11 @@ sel_best_models <- function(cand_models,
 
 
   #Which omission rate?
-  om_thr <- paste0("Omission_rate_at_", omrat, ".mean")
+  om_thr <- paste0("Omission_rate_at_", omrat_threshold, ".mean")
 
   #How many models are being filtered?
   if(verbose){
-    message("Filtering ", nrow(cand_models), " models")
+    message("\nFiltering ", nrow(cand_models), " models")
   }
 
   #If test convex = TRUE, remove convex curves

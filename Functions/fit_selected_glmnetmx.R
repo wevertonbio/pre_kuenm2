@@ -50,10 +50,8 @@
 
 
 ####Function to fit best models####
-fit_selected_glmnetmx <- function(data,
-                                  selected_models,
-                                  replicates = TRUE,
-                                  n_replicates = 10,
+fit_selected_glmnetmx <- function(calibration_results,
+                                  n_replicates = 1,
                                   rep_type = "kfold",
                                   train_portion = 0.7,
                                   write_models = FALSE, #Write files?
@@ -62,37 +60,35 @@ fit_selected_glmnetmx <- function(data,
                                   ncores = 1,
                                   parallelType = "doSNOW",
                                   progress_bar = TRUE,
-                                  verbose = TRUE,
-                                  to_export = c("aic_nk", "aic_ws",
-                                                "eval_stats","glmnet_mx",
-                                                "maxnet.default.regularization",
-                                                "omrat","predict.glmnet_mx",
-                                                "empty_replicates",
-                                                "empty_summary", "hinge",
-                                                "hingeval",
-                                                "thresholds", "thresholdval",
-                                                "categorical",
-                                                "categoricalval")) {
-  #Extracts IDs from models
-  m_ids <- selected_models$ID
+                                  verbose = TRUE) {
+  #Args
+  to_export <- c("aic_nk", "aic_ws",
+                "eval_stats","glmnet_mx",
+                "maxnet.default.regularization",
+                "omrat","predict.glmnet_mx",
+                "empty_replicates",
+                "empty_summary", "hinge",
+                "hingeval",
+                "thresholds", "thresholdval",
+                "categorical",
+                "categoricalval")
 
-  #If replicates = FALSE, set n_replicates = 1
-  if(!replicates) {
-    n_replicates <- 1
-  }
+  #Extracts IDs from models
+  m_ids <- calibration_results$selected_models$ID
 
   #Create grid of fitted models
   dfgrid <- expand.grid(models = m_ids, replicates = 1:n_replicates)
   n <-  nrow(dfgrid)
 
   #Prepare data (index) to replicates
-  if(replicates) {
+  if(n_replicates > 1) {
     #Partitioning data
-    rep_data <- part_data(data = data$calibration_data,
+    rep_data <- part_data(data = calibration_results$calibration_data,
                           pr_bg = "pr_bg",
                           train_portion = train_portion,
                           n_replicates = n_replicates,
-                          method = rep_type) }
+                          method = rep_type)
+    }
 
 
   #Set parallelization
@@ -115,7 +111,8 @@ fit_selected_glmnetmx <- function(data,
         opts <- list(progress = progress)
       else opts <- NULL
     }
-  } else {opts <- NULL}
+  } else {
+    opts <- NULL}
 
   #Fit models with replicates
   best_models <- foreach::foreach(x = 1:n, .options.snow = opts,
@@ -126,15 +123,16 @@ fit_selected_glmnetmx <- function(data,
                                     rep_x <- grid_x$replicates
 
                                     #Get best model
-                                    best_models_i <- selected_models[which(selected_models$ID == m_id),]
+                                    best_models_i <- calibration_results$selected_models[which(calibration_results$selected_models$ID == m_id),]
                                     #best_models_i <- selected_models[i,]
                                     best_formula <- best_models_i$Formulas
                                     best_regm <- best_models_i$regm
 
                                     #Get replicate, if necessary
-                                    if(replicates){
+                                    if(n_replicates > 1){
                                       rep_i <- rep_data[[rep_x]]
-                                      data_x <- data$calibration_data[rep_i, ] } else { #Select i k-fold
+                                      data_x <- calibration_results$calibration_data[rep_i, ]
+                                      } else { #Select i k-fold
                                         data_x <- data }
                                     #Run model
                                     mod_x <- glmnet_mx(p = data_x[,"pr_bg"], data = data_x,

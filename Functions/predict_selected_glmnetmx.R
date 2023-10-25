@@ -22,7 +22,7 @@ predict_selected_glmnetmx <- function(models,
                            consensus_general = TRUE,
                            consensus = c("median", "range", "mean", "stdev"), #weighted mean
                            type = "cloglog",
-                           overwrite = TRUE) {
+                           overwrite = FALSE) {
   #Get models names
   nm <- names(models)
 
@@ -36,9 +36,10 @@ predict_selected_glmnetmx <- function(models,
   names(p_models) <- nm
 
   #Start to store results
-  res <- list(Replicates = p_models)
+  rep <- unlist(p_models)
 
-
+  #Create empty list
+  res <- list()
   #Get consensus by model
   if(consensus_per_model) {
   if("median" %in% consensus) {
@@ -57,36 +58,38 @@ predict_selected_glmnetmx <- function(models,
     }
       }
 
+  #Create empty list to general consensus
+  gen_res <- list()
   #Get general consensus
   if(consensus_general & length(p_models) == 1 & consensus_per_model){
 
     if("median" %in% consensus) {
-      res$Consensus_general$median <- res$Consensus_per_model$median
+      gen_res$median <- res$Consensus_per_model$median
     }
     if("mean" %in% consensus) {
-      res$Consensus_general$mean <- res$Consensus_per_model$mean
+      gen_res$mean <- res$Consensus_per_model$mean
     }
     if("stdev" %in% consensus) {
-      res$Consensus_general$stdev <- res$Consensus_per_model$stdev
+      gen_res$stdev <- res$Consensus_per_model$stdev
     }
     if("range" %in% consensus) {
-      res$Consensus_general$range <- res$Consensus_per_model$range
+      gen_res$range <- res$Consensus_per_model$range
     }
   } else {
     if(consensus_general & length(p_models) == 1 & !consensus_per_model) {
       all_rep <- rast(p_models)
 
       if("median" %in% consensus) {
-        res$Consensus_general$median <- median(all_rep)
+        gen_res$median <- median(all_rep)
       }
       if("mean" %in% consensus) {
-        res$Consensus_general$mean <- mean(all_rep)
+        gen_res$mean <- mean(all_rep)
       }
       if("stdev" %in% consensus) {
-        res$Consensus_general$stdev <- stdev(all_rep)
+        gen_res$stdev <- stdev(all_rep)
       }
       if("range" %in% consensus) {
-        res$Consensus_general$range <- diff(range(all_rep))
+        gen_res$range <- diff(range(all_rep))
       }
     }
 
@@ -94,55 +97,68 @@ predict_selected_glmnetmx <- function(models,
       all_rep <- rast(p_models)
 
       if("median" %in% consensus) {
-        res$Consensus_general$median <- median(all_rep)
+        gen_res$median <- median(all_rep)
       }
       if("mean" %in% consensus) {
-        res$Consensus_general$mean <- mean(all_rep)
+        gen_res$mean <- mean(all_rep)
       }
       if("stdev" %in% consensus) {
-        res$Consensus_general$stdev <- stdev(all_rep)
+        gen_res$stdev <- stdev(all_rep)
       }
       if("range" %in% consensus) {
-        res$Consensus_general$range <- diff(range(all_rep))
+        gen_res$range <- diff(range(all_rep))
       }
     }
   }
+
+  #Final list
+  res <- lapply(1:length(nm), function(x) {
+    mcs <- lapply(consensus, function(y) {
+      res$Consensus_per_model[[y]][[x]]
+    })
+    mcs <- rast(mcs)
+    names(mcs) <- consensus
+
+    list(Replicates = rep[[x]], Model_consensus = mcs)
+  })
+
+  names(res) <- nm
+
+  res <- c(res, General_consensus = rast(gen_res))
 
   #Write files?
   if(write_files) {
     if(!file.exists(out_dir)) {
       dir.create(out_dir, recursive = TRUE)
     }
-  #Get names in results
-  nmres <- setdiff(names(res), "Replicates")
-
-  #Create folders
-  sapply(nmres, function(i){
-    dir.create(file.path(out_dir, i))
-  })
 
   #Save files
-  sapply(nmres, function(i){
-    r_i <- res[[i]]
-    sapply(consensus, function(x){
-      writeRaster(r_i[[x]],
-                  paste0(out_dir, "/", i, "/", x, ".tiff"),
-                  overwrite = overwrite) })
-  })
+  sapply(nm, function(i){
+    #Write Replicates
+    if(write_replicates) {
+    writeRaster(res[[i]]$Replicates,
+                       file.path(out_dir,
+                                 paste0(i, "_replicates.tiff")),
+                overwrite = overwrite) }
+    #Write consensus by model
+    writeRaster(res[[i]]$Model_consensus,
+                file.path(out_dir,
+                          paste0(i, "_consensus.tiff")),
+                overwrite = overwrite)
+    })
+  #Write general consensus
+   writeRaster(res$General_consensus,
+              file.path(out_dir, "General_consensus.tiff"),
+              overwrite = overwrite)
+
+    # sapply(r_i, function(x){
+    #   writeRaster(x,
+    #               paste0(out_dir, "/", i, "/", x, ".tiff"),
+    #               overwrite = overwrite)
+    #   })
+
 
   }
-
-  #Write replicates
-  if(write_replicates) {
-    dir.create(file.path(out_dir, "Replicates"))
-    sapply(nm, function(i){
-      r <- p_models[[i]]
-      writeRaster(r,
-                  paste0(out_dir, "/Replicates/", i, ".tiff"),
-                  overwrite = overwrite)
-    })
-    }
-
   return(res)
   }#End of function
 

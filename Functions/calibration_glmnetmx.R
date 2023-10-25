@@ -12,14 +12,17 @@ calibration_glmnetmx <- function(data, #Data in **CLASS??** format
           parallel_type = "doSNOW",
           return_replicate = TRUE,
           omrat_thr = c(5, 10),
+          omrat_threshold = 10,
           skip_existing_models = FALSE, #Only works if write_summary = TRUE
-          verbose = TRUE,
-          #Check if it's necessary to export in the package
-          to_export = c("aic_nk", "aic_ws", "eval_stats","glmnet_mx",
-                        "maxnet.default.regularization", "omrat",
-                        "predict.glmnet_mx", "empty_replicates",
-                        "empty_summary", "hinge", "hingeval", "thresholds",
-                        "thresholdval", "categorical", "categoricalval")){
+          verbose = TRUE){
+
+  #Args to parallel
+  to_export <- c("aic_nk", "aic_ws", "eval_stats","glmnet_mx",
+                "maxnet.default.regularization", "omrat",
+                "predict.glmnet_mx", "empty_replicates",
+                "empty_summary", "hinge", "hingeval", "thresholds",
+                "thresholdval", "categorical", "categoricalval")
+
   #If write_summary = TRUE, create directory
   if(write_summary){
     if(!file.exists(out_dir))
@@ -212,7 +215,7 @@ calibration_glmnetmx <- function(data, #Data in **CLASS??** format
  if(!return_replicate)
    eval_final_q <- NULL
 
- return(list(Replicates = eval_final_q,
+ return(list(All_results = eval_final_q,
              Summary = eval_final_q_summary))
 
 
@@ -393,7 +396,7 @@ calibration_glmnetmx <- function(data, #Data in **CLASS??** format
      if(!return_replicate)
        eval_final <- NULL
 
-     return(list(Replicates = eval_final,
+     return(list(All_results = eval_final,
                  Summary = eval_final_summary)) } #End of foreach
 
     #Stop cluster
@@ -410,14 +413,30 @@ calibration_glmnetmx <- function(data, #Data in **CLASS??** format
     if(test_convex) {
       replicates_final <- rbind(d_convex_rep, d_res_rep)
       summary_final <- rbind(d_convex_sum, d_res_sum)
-      res_final <- list(Replicates = replicates_final,
+      res_final <- list(All_results = replicates_final,
                         Summary = summary_final)
     } else {
-      res_final <- list(Replicates =  d_res_rep,
+      res_final <- list(All_results =  d_res_rep,
                         Summary = d_res_sum)
     }
 
   } #End of if(n == 0)
+
+  #Select best models
+  bm <- sel_best_models(cand_models = res_final$Summary, #dataframe with Candidate results
+                        test_convex = test_convex, #Remove models with concave curves?
+                        omrat_threshold = omrat_threshold, #Omission rate (test points) used to select the best models
+                        allow_tolerance = T, #If omission rate is higher than set, select the model with minimum omission rate
+                        tolerance = 0.01, #If allow tollerance, select the model with minimum omission rate + tolerance
+                        AIC = "nk", #Which AIC? japones (nk) or Warrien (ws?
+                        significance = 0.05, #Significante to select models based on pROC
+                        verbose = verbose, #Show messages?
+                        delta_aic = 2, #Delta AIC to select best models
+                        save_file = F, #Save file with best models?
+                        file_name = NULL)
+  #Concatenate final results
+  return(c(data, calibration_results = list(res_final),
+             selected_models = list(bm)))
 
 } #End of function
 
