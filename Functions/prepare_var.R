@@ -72,8 +72,11 @@ prepare_var <- function(variables,
     if(write_PCA_files){
       dir.create(file.path(out_dir, "PCA_results"), recursive = TRUE)
       #Get coefficients
-      cof_env <- p_env$rotation %>% as.data.frame() %>%
-        mutate(Variable = row.names(.), .before = 1)
+      rotation_matrix <- as.data.frame(p_env$rotation)
+
+      # Add the "Variable" column at the beginning of the rotation matrix
+      cof_env <- cbind(Variable = row.names(rotation_matrix), rotation_matrix)
+
       write.csv(cof_env, file.path(out_dir, "PCA_results/PCA_rotation.csv"))
       saveRDS(p_env, file.path(out_dir, "PCA_results/PCA_model.RDS"))
       write.csv(var_exp, file.path(out_dir, "PCA_results/PCA_importance.csv"))}
