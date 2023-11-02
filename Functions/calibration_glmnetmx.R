@@ -383,7 +383,7 @@ calibration_glmnetmx <- function(data, #Data in **CLASS??** format
 
                                   #Summarize results
                                   if(class(mods) == "try-error") {
-                                    eval_final <- cbind(grid_x,
+                                    eval_final_summary <- cbind(grid_x,
                                                         empty_summary(omrat_thr = omrat_thr, is_c = is_c))
                                   } else {
                                     eval_final_summary <- eval_stats(eval_final) }
