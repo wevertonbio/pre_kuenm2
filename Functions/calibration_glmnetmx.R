@@ -156,7 +156,7 @@ calibration_glmnetmx <- function(data, #Data in **CLASS??** format
             #Summarize results
             eval_final_q <- empty_summary(omrat_thr = omrat_thr,
                                           is_c = is_c)
-            eval_final_q <- cbind(grid_q, eval_final_q)
+            eval_final_q_summary <- cbind(grid_q, eval_final_q)
 
           } else {#If is not convex, keep calculating metrics
             bgind <- which(data$calibration_data == 0)
