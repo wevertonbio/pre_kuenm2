@@ -4,7 +4,7 @@ binarize_models <- function(candidate_results, pred,
   m <- pred[[metric_consensus]]
   xy <- candidate_results$data_xy[which(
     candidate_results$calibration_data$pr_bg == 1),]
-  v <- extract(m, xy, ID = FALSE)[[1]]
+  v <- terra::extract(m, xy, ID = FALSE)[[1]]
   thr <- as.numeric(quantile(sort(v), omission_rate/100))
   m_bin <- app(m, function(x) ifelse(x >= thr, 1, 0))
   return(m_bin)
